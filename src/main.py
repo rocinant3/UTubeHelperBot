@@ -11,7 +11,7 @@ from exceptions import youtube as youtube_exceptions
 
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-GOOGLE_DEVELOPER_KEY = os.getenv("")
+GOOGLE_DEVELOPER_KEY = os.getenv("GOOGLE_DEVELOPER_KEY", "")
 BITLY_API_KEY = os.getenv("BITLY_API_KEY", "")
 
 bot = Bot(token=BOT_TOKEN, parse_mode=types.ParseMode.HTML)
