@@ -49,5 +49,5 @@ class YoutubeService:
         html = ""
         for shorted_link in links:
             link = shorted_link.shorted_link.replace("https://", "")
-            html += f"{shorted_link.description} >> {link}\n"
+            html += f"{shorted_link.description} » {link}\n"
         return html
