@@ -17,18 +17,8 @@ class YoutubeService:
         self.bitly_client = BitlyClient(token=bitly_key)
         self.client = YoutTubeClient(token=dev_key)
 
-    def get_short_links_on_video_time_codes(self, url: str) -> typing.List[ShortedLink]:
-        video_id = parse_video_id_from_url(url)
-        if not video_id:
-            raise youtube_exceptions.InvalidURLError
-
-        video_meta = self.client.get_video_meta(video_id)
-
-        if len(video_meta['items']) == 0:
-            raise youtube_exceptions.VideoDoesntExistError
-
+    def short_links(self, description: str, video_id: str) -> typing.List[ShortedLink]:
         result = []
-        description = video_meta['items'][0]['snippet']['description']
         time_codes = parse_description_time_codes(description)
 
         if len(time_codes) == 0:
@@ -37,12 +27,26 @@ class YoutubeService:
             time_in_seconds = time_code_to_seconds(time_code=time_code.time)
             link = f'https://www.youtube.com/watch?v={video_id}&t={time_in_seconds}s'
             shorted_url = self.bitly_client.shorten(link)
-            print("SHORTED")
-            print(shorted_url)
             if shorted_url:
                 obj = ShortedLink(description=time_code.description, shorted_link=shorted_url)
                 result.append(obj)
         return result
+
+    @staticmethod
+    def parse_video_id(url: str) -> str:
+        video_id = parse_video_id_from_url(url)
+        if not video_id:
+            raise youtube_exceptions.InvalidURLError
+        return video_id
+
+    def get_short_links_for_video_time_codes(self, url: str) -> typing.List[ShortedLink]:
+        video_id = self.parse_video_id(url)
+        video_meta = self.client.get_video_meta(video_id)
+        if len(video_meta['items']) == 0:
+            raise youtube_exceptions.VideoDoesntExistError
+        description = video_meta['items'][0]['snippet']['description']
+
+        return self.short_links(description, video_id)
 
     @staticmethod
     def shorted_links_to_html(links: typing.List[ShortedLink]) -> str:
