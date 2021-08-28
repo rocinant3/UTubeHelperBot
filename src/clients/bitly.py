@@ -11,5 +11,6 @@ class BitlyClient:
     def shorten(self, url: str) -> typing.Optional[str]:
         try:
             return self.conn.shorten(uri=url)['url']
-        except bitly_api.BitlyError:
+        except bitly_api.BitlyError as e:
+            print(e)
             return None

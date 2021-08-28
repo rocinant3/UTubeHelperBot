@@ -4,7 +4,20 @@ from urllib.parse import urlparse
 from collections import namedtuple
 
 
-time_code_pattern = re.compile(r'(?<!\d:)(?<!\d)[0-5]?\d:[0-5]\d(?!:?\d)')
+minutes_pattern = re.compile(r'(?<!\d:)(?<!\d)[0-9]?\d:[0-9]\d(?!:?\d)')
+hours_pattern = re.compile(r"(?:[0-9]\d|[0-9]*):(?:[0-9]\d):(?:[0-9]\d)")
+
+
+def find_time_code(string: str) -> typing.Optional[str]:
+    try:
+        return hours_pattern.search(string).group(0)
+    except AttributeError:
+        pass
+    try:
+        return minutes_pattern.search(string).group(0)
+    except AttributeError:
+        pass
+    return None
 
 
 TimeCode = namedtuple("TimeCode", ("time", "description"))
@@ -13,13 +26,11 @@ TimeCode = namedtuple("TimeCode", ("time", "description"))
 def parse_description_time_codes(description) -> typing.List[TimeCode]:
     result = []
     for sentence in description.split('\n'):
-        try:
-            time_code = time_code_pattern.search(sentence).group(0)
-
-            _description = sentence.replace(time_code, "").replace('-', '').strip()
-            result.append(TimeCode(time=time_code, description=_description))
-        except AttributeError:
+        time_code = find_time_code(sentence)
+        if not time_code:
             continue
+        _description = sentence.replace(time_code, "").replace('-', '').strip()
+        result.append(TimeCode(time=time_code, description=_description))
     return result
 
 

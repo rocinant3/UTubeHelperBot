@@ -37,6 +37,8 @@ class YoutubeService:
             time_in_seconds = time_code_to_seconds(time_code=time_code.time)
             link = f'https://www.youtube.com/watch?v={video_id}&t={time_in_seconds}s'
             shorted_url = self.bitly_client.shorten(link)
+            print("SHORTED")
+            print(shorted_url)
             if shorted_url:
                 obj = ShortedLink(description=time_code.description, shorted_link=shorted_url)
                 result.append(obj)

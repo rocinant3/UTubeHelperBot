@@ -14,6 +14,8 @@ BITLY_API_KEY = os.getenv("BITLY_API_KEY", "")
 bot = Bot(token=BOT_TOKEN, parse_mode=types.ParseMode.HTML)
 dp = Dispatcher(bot=bot)
 
+print(BITLY_API_KEY)
+
 
 @dp.message_handler()
 async def message_handler(message: types.Message):
