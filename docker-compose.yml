@@ -1,0 +1,14 @@
+version: '3.7'
+
+services:
+
+  telegram:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "cd /code/src && python3 main.py"
+    restart: on-failure
+    env_file:
+      - .env
+
+
