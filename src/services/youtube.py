@@ -17,7 +17,7 @@ class YoutubeService:
         self.bitly_client = BitlyClient(token=bitly_key)
         self.client = YoutTubeClient(token=dev_key)
 
-    def short_links(self, description: str, video_id: str) -> typing.List[ShortedLink]:
+    def _extract_time_codes(self, description: str, video_id: str, short_urls: bool = False) -> typing.List[ShortedLink]:
         result = []
         time_codes = parse_description_time_codes(description)
 
@@ -26,7 +26,10 @@ class YoutubeService:
         for time_code in time_codes:
             time_in_seconds = time_code_to_seconds(time_code=time_code.time)
             link = f'https://www.youtube.com/watch?v={video_id}&t={time_in_seconds}s'
-            shorted_url = self.bitly_client.shorten(link)
+            if short_urls:
+                shorted_url = self.bitly_client.shorten(link)
+            else:
+                shorted_url = link
             if shorted_url:
                 obj = ShortedLink(description=time_code.description, shorted_link=shorted_url)
                 result.append(obj)
@@ -39,19 +42,21 @@ class YoutubeService:
             raise youtube_exceptions.InvalidURLError
         return video_id
 
-    def get_short_links_for_video_time_codes(self, url: str) -> typing.List[ShortedLink]:
+    def extract_time_codes(self, url: str, short_urls: bool = False) -> typing.List[ShortedLink]:
         video_id = self.parse_video_id(url)
         video_meta = self.client.get_video_meta(video_id)
         if len(video_meta['items']) == 0:
             raise youtube_exceptions.VideoDoesntExistError
         description = video_meta['items'][0]['snippet']['description']
 
-        return self.short_links(description, video_id)
+        return self._extract_time_codes(description, video_id, short_urls)
 
     @staticmethod
-    def shorted_links_to_html(links: typing.List[ShortedLink]) -> str:
+    def time_codes_to_html(links: typing.List[ShortedLink], replace_http: bool = True) -> str:
         html = ""
         for shorted_link in links:
-            link = shorted_link.shorted_link.replace("https://", "")
+            link = shorted_link.shorted_link
+            if replace_http:
+                link = link.replace("https://", "")
             html += f"{shorted_link.description} » {link}\n"
         return html

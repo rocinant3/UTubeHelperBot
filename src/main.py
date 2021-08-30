@@ -1,5 +1,4 @@
-import os
-
+from decouple import config
 from aiogram import Bot, types, Dispatcher, executor
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -7,21 +6,28 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 from services.youtube import YoutubeService
 from utils.youtube import is_valid_url
+from utils.bot import build_keyboard
 from exceptions import youtube as youtube_exceptions
 
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-GOOGLE_DEVELOPER_KEY = os.getenv("GOOGLE_DEVELOPER_KEY", "")
-BITLY_API_KEY = os.getenv("BITLY_API_KEY", "")
+BOT_TOKEN = config("BOT_TOKEN")
+GOOGLE_DEVELOPER_KEY = config("GOOGLE_DEVELOPER_KEY")
+BITLY_API_KEY = config("BITLY_API_KEY")
 
 bot = Bot(token=BOT_TOKEN, parse_mode=types.ParseMode.HTML)
 dp = Dispatcher(bot=bot, storage=MemoryStorage())
 
 
-class ServiceProcess(StatesGroup):
+yes_or_no_kb = build_keyboard(("Да", "Нет"), one_time=True)  # type: ignore
+agree_kb = build_keyboard(("Подтвердить", ), one_time=True)  # type: ignore
+
+
+class ServiceState(StatesGroup):
     choice_mode = State()
     enter_link = State()
     enter_description = State()
+    short_links = State()
+    replace_http = State()
     end = State()
 
 
@@ -35,37 +41,26 @@ async def set_commands(_bot: Bot):
 @dp.message_handler(commands="start")
 async def start(message: types.Message,  state: FSMContext):
     await state.reset_state()
-    await ServiceProcess.choice_mode.set()
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    m_button = types.InlineKeyboardButton(text="Ручной")
-    a_button = types.InlineKeyboardButton(text="Авто")
-    buttons = [m_button, a_button]
-    keyboard.add(*buttons)
-
+    await ServiceState.choice_mode.set()
+    keyboard = build_keyboard(("Ручной", "Авто"), one_time=True)
     await message.answer('Режим', reply_markup=keyboard)
 
 
-@dp.message_handler(state=ServiceProcess.choice_mode)
+@dp.message_handler(state=ServiceState.choice_mode)
 async def choice_mode(message: types.Message, state: FSMContext):
     if message.text == "Ручной":
-        await ServiceProcess.enter_link.set()
+        await ServiceState.enter_link.set()
         await message.answer('Введите ссылку')
         await state.update_data(mode='manual')
     elif message.text == "Авто":
-        await ServiceProcess.enter_link.set()
+        await ServiceState.enter_link.set()
         await message.answer("Введите ссылку")
         await state.update_data(mode="auto")
     else:
         await message.answer('Неверная команда')
 
 
-_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-_start_button = types.InlineKeyboardButton(text="Да")
-_buttons = [_start_button]
-_keyboard.add(*_buttons)
-
-
-@dp.message_handler(state=ServiceProcess.enter_link)
+@dp.message_handler(state=ServiceState.enter_link)
 async def enter_link(message: types.Message, state: FSMContext):
     if not is_valid_url(message.text):
         await message.reply("Невалидная ссылка")
@@ -74,28 +69,57 @@ async def enter_link(message: types.Message, state: FSMContext):
         state_data = await state.get_data()
         mode = state_data['mode']
         if mode == 'auto':
-            await ServiceProcess.end.set()
-            await message.reply(text="Подвердить", reply_markup=_keyboard)
+            await ServiceState.short_links.set()
+            await message.reply(text="Сокращать ссылки?", reply_markup=yes_or_no_kb)
         elif mode == "manual":
-            await ServiceProcess.enter_description.set()
+            await ServiceState.enter_description.set()
             await message.answer("Введите описание видео")
 
 
-@dp.message_handler(state=ServiceProcess.enter_description)
+@dp.message_handler(state=ServiceState.enter_description)
 async def enter_description(message: types.Message, state: FSMContext):
     if message.text == "":
         await message.answer("Пустое сообщение")
     else:
         await state.update_data(description=message.text)
-        await ServiceProcess.end.set()
-        await message.reply(text="Подвердить", reply_markup=_keyboard)
+        await ServiceState.short_links.set()
+        await message.reply(text="Сокращать ссылки?", reply_markup=yes_or_no_kb)
 
 
-@dp.message_handler(state=ServiceProcess.end)
+@dp.message_handler(state=ServiceState.short_links)
+async def short_links(message: types.Message, state: FSMContext):
+    if message.text not in ["Да", "Нет"]:
+        await message.answer("Введите Да или Нет")
+    else:
+        if message.text == "Да":
+            await state.update_data(short_links=True)
+        elif message.text == "Нет":
+            await state.update_data(short_links=False)
+
+        await ServiceState.replace_http.set()
+        await message.reply("Заменять https?", reply_markup=yes_or_no_kb)
+
+
+@dp.message_handler(state=ServiceState.replace_http)
+async def replace_http(message: types.Message, state: FSMContext):
+    if message.text not in ["Да", "Нет"]:
+        await message.answer("Введите Да или Нет")
+    else:
+        if message.text == "Да":
+            await state.update_data(replace_http=True)
+        elif message.text == "Нет":
+            await state.update_data(replace_http=False)
+        await ServiceState.end.set()
+        await message.reply("Подтвердить", reply_markup=agree_kb)
+
+
+@dp.message_handler(state=ServiceState.end)
 async def end(message: types.Message, state: FSMContext):
     state_data = await state.get_data()
     link = state_data['link']
     mode = state_data['mode']
+    http_replace = state_data['replace_http']
+    short_the_links = state_data['short_links']
 
     try:
 
@@ -103,10 +127,10 @@ async def end(message: types.Message, state: FSMContext):
         if mode == 'manual':
             description = state_data['description']
             video_id = youtube_service.parse_video_id(link)
-            shorted_links = youtube_service.short_links(description, video_id)
+            shorted_links = youtube_service._extract_time_codes(description, video_id, short_the_links)
         else:
-            shorted_links = youtube_service.get_short_links_for_video_time_codes(link)
-        await message.reply(youtube_service.shorted_links_to_html(shorted_links))
+            shorted_links = youtube_service.extract_time_codes(link, short_the_links)
+        await message.reply(youtube_service.time_codes_to_html(shorted_links, http_replace))
     except youtube_exceptions.InvalidURLError:
         await message.reply("Невалидная Youtube ссылка")
     except youtube_exceptions.VideoDoesntExistError:
