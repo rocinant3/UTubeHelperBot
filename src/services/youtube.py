@@ -25,7 +25,7 @@ class YoutubeService:
             raise youtube_exceptions.TimeCodesDoesntExistError
         for time_code in time_codes:
             time_in_seconds = time_code_to_seconds(time_code=time_code.time)
-            link = f'https://www.youtube.com/watch?v={video_id}&t={time_in_seconds}s'
+            link = f'https://youtu.be/watch?v={video_id}&t={time_in_seconds}s'
             if short_urls:
                 shorted_url = self.bitly_client.shorten(link)
             else:
