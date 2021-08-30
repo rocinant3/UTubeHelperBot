@@ -21,6 +21,7 @@ dp = Dispatcher(bot=bot, storage=MemoryStorage())
 
 yes_or_no_kb = build_keyboard(("Да", "Нет"), one_time=True)  # type: ignore
 agree_kb = build_keyboard(("Подтвердить", ), one_time=True)  # type: ignore
+start_kb = build_keyboard(("/start", ), one_time=True)  # type: ignore
 
 
 class ServiceState(StatesGroup):
@@ -45,6 +46,7 @@ async def start(message: types.Message,  state: FSMContext):
     await ServiceState.choice_mode.set()
     keyboard = build_keyboard(("Ручной", "Авто"), one_time=True)
     await message.answer('Режим', reply_markup=keyboard)
+    await set_commands(bot)
 
 
 @dp.message_handler(state=ServiceState.choice_mode)
@@ -141,6 +143,7 @@ async def end(message: types.Message, state: FSMContext):
 
             else:
                 await message.reply(html_message)
+            await message.answer("Повторим?", reply_markup=start_kb)
     except youtube_exceptions.InvalidURLError:
         await message.reply("Невалидная Youtube ссылка")
     except youtube_exceptions.VideoDoesntExistError:
