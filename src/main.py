@@ -7,6 +7,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from services.youtube import YoutubeService
 from utils.youtube import is_valid_url
 from utils.bot import build_keyboard
+from utils.core import batch
 from exceptions import youtube as youtube_exceptions
 
 
@@ -130,7 +131,16 @@ async def end(message: types.Message, state: FSMContext):
             shorted_links = youtube_service._extract_time_codes(description, video_id, short_the_links)
         else:
             shorted_links = youtube_service.extract_time_codes(link, short_the_links)
-        await message.reply(youtube_service.time_codes_to_html(shorted_links, http_replace))
+            html_message = youtube_service.time_codes_to_html(shorted_links, http_replace)
+            if len(html_message) > 4096:
+                for batched_message in batch(html_message.split("\n"),  25):
+                    final_message = ""
+                    for mess in batched_message:
+                        final_message += mess
+                    await message.reply(final_message)
+
+            else:
+                await message.reply(html_message)
     except youtube_exceptions.InvalidURLError:
         await message.reply("Невалидная Youtube ссылка")
     except youtube_exceptions.VideoDoesntExistError:
