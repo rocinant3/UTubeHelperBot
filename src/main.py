@@ -136,7 +136,7 @@ async def end(message: types.Message, state: FSMContext):
                 for batched_message in batch(html_message.split("\n"),  25):
                     final_message = ""
                     for mess in batched_message:
-                        final_message += mess
+                        final_message += f'{mess}\n'
                     await message.reply(final_message)
 
             else:
